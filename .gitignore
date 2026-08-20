@@ -1,0 +1,7 @@
+__pycache__
+/images/*
+/captures/*
+/venv
+.env
+*.pt
+.DS_Store
