@@ -1,4 +1,4 @@
-# 🐱 YooSee Vision - Sistema de Detecção de Gatos com Blur de Placas
+# 🐱 Sistema de Detecção de Gatos com Blur de Placas
 
 Um sistema avançado de vigilância por câmera IP que detecta gatos em tempo real, borra automaticamente placas de veículos para privacidade e integra-se com dispositivos inteligentes Tuya para automação.
 
