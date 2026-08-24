@@ -21,10 +21,9 @@ class CameraWorker:
                 from detection import Detector
                 from integrations.tuya import TuyaController
 
-                tuya_controller = TuyaController.from_env()
-                if not tuya_controller.is_configured():
-                    tuya_controller = None
-                self.detector = Detector(tuya_controller)
+                tuya = TuyaController()
+                tuya.turnOnAllLights()
+                self.detector = Detector(tuya)
 
             if not self.camera.connect():
                 return

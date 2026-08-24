@@ -110,6 +110,35 @@ TUYA_LIGHT_DPS = 1            # DPS para controle de ligar/desligar
 TUYA_DEVICE_VERSION = 3.3     # Versão do protocolo Tuya
 ```
 
+Para acender várias lâmpadas, use `TUYA_LIGHTS` com um objeto para cada dispositivo.
+Cada lâmpada precisa do próprio ID, chave local e IP:
+
+```env
+TUYA_LIGHTS = '[
+  {"id": "id-lampada-1", "key": "chave-lampada-1", "ip": "192.168.1.20", "type": "bulb", "dps": 1, "version": 3.3},
+  {"id": "id-lampada-2", "key": "chave-lampada-2", "ip": "192.168.1.21", "type": "bulb", "dps": 1, "version": 3.3}
+]'
+```
+
+Quando `turn_on_lights()` ou `turn_on_varanda_lights()` for chamado, todos os
+dispositivos configurados em `TUYA_LIGHTS` serão acionados. Se `TUYA_LIGHTS` estiver
+vazio, o sistema usa as variáveis legadas `TUYA_DEVICE_*` para um único dispositivo.
+
+#### Áudio repelente
+
+```env
+CAT_REPELLENT_AUDIO = 'shiiiii.mp3'
+```
+
+No Raspberry Pi/Linux, instale um reprodutor de áudio, por exemplo:
+
+```bash
+sudo apt install ffmpeg
+```
+
+O macOS usa `afplay` automaticamente. O volume do sistema operacional e do
+amplificador também precisa estar alto.
+
 ## 📁 Estrutura do Projeto
 
 ```

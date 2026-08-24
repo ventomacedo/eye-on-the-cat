@@ -2,6 +2,7 @@ import os
 
 from ultralytics import YOLO
 from detection.processor import FileProcessor
+from integrations.audio import CatRepellentAudio
 from storage.capture import Capture
 
 DEVICE_TYPE = os.getenv("DEVICE_TYPE") or "cpu"
@@ -15,6 +16,7 @@ class Detector:
         self.model = YOLO("yolo11n.pt")
         self.plateModel = YOLO("license_plates.pt")
         self.tuyaController = tuyaController
+        self.repellentAudio = CatRepellentAudio()
         self.resetMessage = False
         self.processor = FileProcessor(self)
 
@@ -60,16 +62,17 @@ class Detector:
                 detected = True
                 print(f"🐱 detectado! id={id} label={label} conf={float(box.conf):.2f}")
 
-                if TAKE_PICTURE:
-                    self.storage.printCapture(frame, id)
-                    break
-
                 if self.tuyaController is not None:
                     try:
-                        self.tuyaController.turn_on_varanda_lights()
-                        print("💡 Luz da varanda acionada via Tuya.")
+                        self.tuyaController.turnOnAllLights()
+                        print("💡 Luzes acionadas via Tuya.")
                     except Exception as tuya_error:
-                        print(f"⚠️ Falha ao acender luz da varanda: {tuya_error}")
+                        print(f"⚠️ Falha ao acender luzes via Tuya: {tuya_error}")
+
+                    self.repellentAudio.play()
+
+                if TAKE_PICTURE:
+                    self.storage.printCapture(frame, id)
                 break
 
             if TAKE_RECORD:self.storage.recorder(frame, id, annotated_frame=_annotated_frame, detected=detected)
