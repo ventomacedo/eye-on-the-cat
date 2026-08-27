@@ -10,9 +10,10 @@ Um sistema avançado de vigilância por câmera IP que detecta gatos em tempo re
 - 🎬 **Gravação de vídeos** - Registra eventos de detecção com timestamp
 - 🚗 **Detecção e blur de placas** - Borra placas de veículos para privacidade
 - 💡 **Controle de luzes inteligentes** - Integração com dispositivos Tuya (acionamento via detecção)
+- 🔊 **Áudio repelente** - Toca som ao detectar gato, com cooldown entre disparos
 - 🖼️ **Processamento de arquivos locais** - Processa imagens e vídeos salvos localmente
 - 🔧 **Configuração flexível** - Todas as opções via arquivo `.env`
-- 🖥️ **Suporte multiplataforma** - Funciona em macOS, Linux e Windows
+- 🖥️ **Suporte multiplataforma** - Funciona em macOS, Linux e Windows (previne sleep no macOS via `caffeinate`)
 
 ## 📋 Pré-requisitos
 
@@ -100,44 +101,37 @@ TAKE_RECORD = True          # Gravar vídeos quando detectar gato
 
 #### Integração Tuya (Opcional)
 
-```env
-# Configuração do dispositivo Tuya
-TUYA_DEVICE_ID = 'seu-device-id'
-TUYA_DEVICE_KEY = 'sua-chave-local'
-TUYA_DEVICE_IP = '192.168.1.50'
-TUYA_DEVICE_TYPE = 'outlet'  # 'outlet' ou 'bulb'
-TUYA_LIGHT_DPS = 1            # DPS para controle de ligar/desligar
-TUYA_DEVICE_VERSION = 3.3     # Versão do protocolo Tuya
-```
-
-Para acender várias lâmpadas, use `TUYA_LIGHTS` com um objeto para cada dispositivo.
-Cada lâmpada precisa do próprio ID, chave local e IP:
+Todos os dispositivos Tuya (lâmpadas) são configurados via `TUYA_LIGHTS`, um array JSON.
+Cada dispositivo precisa de `id`, `key` (chave local) e `ip`; `version` é opcional (padrão `3.3`):
 
 ```env
 TUYA_LIGHTS = '[
-  {"id": "id-lampada-1", "key": "chave-lampada-1", "ip": "192.168.1.20", "type": "bulb", "dps": 1, "version": 3.3},
-  {"id": "id-lampada-2", "key": "chave-lampada-2", "ip": "192.168.1.21", "type": "bulb", "dps": 1, "version": 3.3}
+  {"id": "id-lampada-1", "key": "chave-lampada-1", "ip": "192.168.1.20", "version": 3.3},
+  {"id": "id-lampada-2", "key": "chave-lampada-2", "ip": "192.168.1.21", "version": 3.3}
 ]'
 ```
 
-Quando `turn_on_lights()` ou `turn_on_varanda_lights()` for chamado, todos os
-dispositivos configurados em `TUYA_LIGHTS` serão acionados. Se `TUYA_LIGHTS` estiver
-vazio, o sistema usa as variáveis legadas `TUYA_DEVICE_*` para um único dispositivo.
+Quando um gato é detectado com confiança suficiente, `turnOnAllLights()` aciona
+todos os dispositivos carregados de `TUYA_LIGHTS`. `TuyaController` também liga
+as luzes uma vez ao iniciar cada worker de câmera.
 
 #### Áudio repelente
 
 ```env
-CAT_REPELLENT_AUDIO = 'shiiiii.mp3'
+CAT_REPELLENT_AUDIO = 'shiii.mp3'  # Padrão: shiiiii.mp3
 ```
 
-No Raspberry Pi/Linux, instale um reprodutor de áudio, por exemplo:
+Reprodução com cooldown de 15s entre disparos (volume 2.0). Player usado por
+plataforma:
+- **macOS**: `afplay` (já vem no sistema)
+- **Linux/Windows**: `ffplay`, `mpg123` ou `mpv` (primeiro disponível), ex.:
 
 ```bash
-sudo apt install ffmpeg
+sudo apt install ffmpeg   # fornece ffplay
 ```
 
-O macOS usa `afplay` automaticamente. O volume do sistema operacional e do
-amplificador também precisa estar alto.
+Se nenhum player compatível for encontrado, ou o arquivo de áudio não existir,
+o sistema registra um aviso no console e segue sem tocar o som.
 
 ## 📁 Estrutura do Projeto
 
@@ -153,40 +147,34 @@ eye-on-the-cat/
 ├── detection/
 │   ├── __init__.py
 │   ├── detector.py             # Motor de detecção (gatos + placas)
-│   └── processor.py            # Processador de arquivos locais
+│   └── processor.py            # Processador de arquivos locais (blur, imagem, vídeo)
 ├── storage/
 │   ├── __init__.py
 │   └── capture.py              # Gerenciamento de armazenamento (fotos/vídeos)
 ├── integrations/
-│   └── tuya.py                 # Integração com dispositivos Tuya
-├── images/
-│   ├── Garagem/                # Fotos capturadas (Garagem)
-│   ├── Jardim/                 # Fotos capturadas (Jardim)
-│   └── Quintal/                # Fotos capturadas (Quintal)
+│   ├── __init__.py
+│   ├── tuya.py                 # Integração com dispositivos Tuya
+│   └── audio.py                # Áudio repelente (CatRepellentAudio)
 └── captures/
-    ├── Garagem/
-    ├── Jardim/
-    └── Quintal/
+    └── <camera>/<AAAAMMDD>/
+        ├── images/              # Fotos capturadas
+        └── videos/              # Vídeos gravados
 ```
 
 ## 🎯 Uso
 
 ### 1. Monitoramento em Tempo Real
 
-Descomente a seção de câmeras em `main.py`:
-
-```python
-# Descomente em main.py
-if len(CAMERAS) > 0:
-    for cam in CAMERAS:
-        # Inicia workers para cada câmera
-```
-
-Execute:
+Com `CAMERAS` preenchido em `.env`, basta executar:
 
 ```bash
 python main.py
 ```
+
+Cada câmera roda em processo próprio (`CameraWorker`), com seu `Detector` e
+`TuyaController` inicializados internamente. No macOS, `avoidSleep()` chama
+`caffeinate` automaticamente para impedir o sistema de dormir enquanto a
+aplicação está ativa.
 
 ### 2. Processamento de Arquivo Local
 
@@ -197,23 +185,15 @@ from detection import Detector, FileProcessor
 from integrations.tuya import TuyaController
 
 # Inicializar
-tuya_controller = TuyaController.from_env()
+tuya_controller = TuyaController()
 detector = Detector(tuyaController=tuya_controller)
 processor = FileProcessor(detector)
 
 # Processar imagem
-processor.process_image("entrada.jpg", "saida.jpg")
+processor.processImage("entrada.jpg", "saida.jpg")
 
 # Processar vídeo
-processor.process_video("entrada.mp4", "saida.mp4")
-```
-
-Ou edite `main.py`:
-
-```python
-# Em main.py, linha ~65
-VIDEO_INPUT = "captures/Jardim/20260812/videos/captura-catito.mp4"
-VIDEO_OUTPUT = "captures/Jardim/captura-catito.mp4"
+processor.processVideo("entrada.mp4", "saida.mp4")
 ```
 
 ### 3. Parar a Aplicação
@@ -241,9 +221,10 @@ VIDEO_OUTPUT = "captures/Jardim/captura-catito.mp4"
 ### Integração Tuya
 
 Quando um gato é detectado com confiança > 0.50:
-1. Aciona a luz da varanda via dispositivo Tuya
-2. Registra o evento nos logs
-3. Captura foto/vídeo (se habilitado)
+1. Aciona todas as luzes configuradas em `TUYA_LIGHTS` via `turnOnAllLights()`
+2. Toca o áudio repelente (respeitando cooldown de 15s)
+3. Registra o evento nos logs
+4. Captura foto/vídeo (se habilitado)
 
 ## 🛠️ Troubleshooting
 
@@ -282,11 +263,13 @@ DEVICE_TYPE = 'cpu'  # Mude para CPU
 
 ```
 🔒 Prevenção de repouso do macOS ativa (caffeinate).
-🎥 Iniciando câmera: Jardim
+Success: 2 dispositivos foram carregados.
 🐱 detectado! id=Jardim label=cat conf=0.75
-💡 Luz da varanda acionada via Tuya.
-📸 Capturando foto: images/Jardim/20260813_142530.jpg
-🎬 Gravando vídeo: captures/Jardim/20260813_142530.mp4
+💡 Luzes acionadas via Tuya.
+Áudio repelente reproduzido: shiii.mp3
+Movimento detectado, salvando...
+🐱 Gato detectado! Gravando 10 segundos em: captures/Jardim/20260827/videos/142530.mp4
+✅ Vídeo salvo em: captures/Jardim/20260827/videos/142530.mp4. Próxima gravação disponível em 15s.
 ```
 
 ## 🔐 Privacidade e Segurança
@@ -300,8 +283,10 @@ DEVICE_TYPE = 'cpu'  # Mude para CPU
 
 Todos os eventos são impressos no console:
 - `🐱 detectado!` - Detecção de gato
-- `💡 Luz... acionada` - Ação Tuya executada
-- `📸 Capturando foto` - Captura de imagem
+- `💡 Luzes acionadas via Tuya.` - Ação Tuya executada
+- `Áudio repelente reproduzido:` - Som repelente tocado
+- `Movimento detectado, salvando...` - Captura de imagem
+- `🐱 Gato detectado! Gravando...` / `✅ Vídeo salvo em:` - Gravação de vídeo
 - `Placa detectada!` - Detecção de placa
 - `Erro na detecção:` - Exceções capturadas
 

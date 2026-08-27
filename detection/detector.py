@@ -13,7 +13,7 @@ class Detector:
     def __init__(self, tuyaController=None):
         self.storage = Capture()
         self.frame_count = 0
-        self.model = YOLO("yolo11n.pt")
+        self.model = YOLO("yolo11l.pt")
         self.plateModel = YOLO("license_plates.pt")
         self.tuyaController = tuyaController
         self.repellentAudio = CatRepellentAudio()
