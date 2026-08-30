@@ -69,7 +69,7 @@ class Detector:
                     except Exception as tuya_error:
                         print(f"⚠️ Falha ao acender luzes via Tuya: {tuya_error}")
 
-                    self.repellentAudio.play()
+                self.repellentAudio.play()
 
                 if TAKE_PICTURE:
                     self.storage.printCapture(frame, id)

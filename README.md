@@ -112,8 +112,7 @@ TUYA_LIGHTS = '[
 ```
 
 Quando um gato é detectado com confiança suficiente, `turnOnAllLights()` aciona
-todos os dispositivos carregados de `TUYA_LIGHTS`. `TuyaController` também liga
-as luzes uma vez ao iniciar cada worker de câmera.
+todos os dispositivos carregados de `TUYA_LIGHTS`.
 
 #### Áudio repelente
 
@@ -121,8 +120,9 @@ as luzes uma vez ao iniciar cada worker de câmera.
 CAT_REPELLENT_AUDIO = 'shiii.mp3'  # Padrão: shiiiii.mp3
 ```
 
-Reprodução com cooldown de 15s entre disparos (volume 2.0). Player usado por
-plataforma:
+Tocado a cada detecção de gato (confiança > 0.50), independente de haver
+`TuyaController` configurado. Reprodução com cooldown de 15s entre disparos
+(volume 2.0). Player usado por plataforma:
 - **macOS**: `afplay` (já vem no sistema)
 - **Linux/Windows**: `ffplay`, `mpg123` ou `mpv` (primeiro disponível), ex.:
 
@@ -221,10 +221,16 @@ processor.processVideo("entrada.mp4", "saida.mp4")
 ### Integração Tuya
 
 Quando um gato é detectado com confiança > 0.50:
-1. Aciona todas as luzes configuradas em `TUYA_LIGHTS` via `turnOnAllLights()`
-2. Toca o áudio repelente (respeitando cooldown de 15s)
+1. Se `TuyaController` estiver configurado, aciona todas as luzes de `TUYA_LIGHTS` via `turnOnAllLights()`
+2. Toca o áudio repelente (respeitando cooldown de 15s), independente do Tuya estar configurado
 3. Registra o evento nos logs
 4. Captura foto/vídeo (se habilitado)
+
+### Captura RTSP
+
+- Leitura de frames roda em thread própria (`_grab_loop`), sempre mantendo o frame mais recente disponível para `read()`
+- Após 10 falhas de leitura consecutivas, reconecta automaticamente ao stream
+- Transporte RTSP fixo em UDP, com buffers ajustados para reduzir latência
 
 ## 🛠️ Troubleshooting
 
